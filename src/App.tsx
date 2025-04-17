@@ -1,6 +1,8 @@
 import './App.scss';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Todos } from './types/Todos';
+// eslint-disable-next-line import/extensions
+import { User } from './types/User';
 import usersFromServer from './api/users';
 import todosFromServer from './api/todos';
 import { TodoList } from './components/TodoList';
@@ -11,16 +13,22 @@ type TodoFormError = {
 };
 
 export const App = () => {
-  const [todos, setTodos] = useState<Todos[]>(todosFromServer);
+  const [todos, setTodos] = useState<Todos[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
 
   const [formTitle, setFormTitle] = useState<string>('');
   const [formSelect, setFormSelect] = useState<number>(0);
 
   const [errors, setErrors] = useState<TodoFormError>({});
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setTodos(todosFromServer);
+    setUsers(usersFromServer);
+  }, []);
 
   const titleInput = (event: React.ChangeEvent<HTMLInputElement>) => {
     setFormTitle(event.target.value);
-
     const { titleError, ...otherErrors } = errors;
 
     setErrors({ ...otherErrors });
@@ -28,18 +36,18 @@ export const App = () => {
 
   const selectInput = (event: React.ChangeEvent<HTMLSelectElement>) => {
     setFormSelect(+event.target.value);
-
     const { selectError, ...otherErrors } = errors;
 
     setErrors({ ...otherErrors });
   };
 
-  const determineId = () => Math.max(...todos.map(todo => todo.id)) + 1;
+  const determineId = () => Math.max(0, ...todos.map(todo => todo.id)) + 1;
 
   const clearForm = () => {
     setErrors({});
     setFormTitle('');
     setFormSelect(0);
+    inputRef.current?.focus();
   };
 
   const addTodo = (event: React.FormEvent<HTMLFormElement>) => {
@@ -47,7 +55,7 @@ export const App = () => {
 
     const newErrors: TodoFormError = {};
 
-    if (!formTitle) {
+    if (!formTitle.trim()) {
       newErrors.titleError = 'Please enter a title';
     }
 
@@ -55,7 +63,7 @@ export const App = () => {
       newErrors.selectError = 'Please choose a user';
     }
 
-    if (Object.keys(newErrors).length !== 0) {
+    if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
 
       return;
@@ -63,12 +71,12 @@ export const App = () => {
 
     const newTodo: Todos = {
       id: determineId(),
-      title: formTitle,
+      title: formTitle.trim(),
       completed: false,
       userId: formSelect,
     };
 
-    setTodos([...todos, newTodo]);
+    setTodos(prev => [...prev, newTodo]);
     clearForm();
   };
 
@@ -76,7 +84,7 @@ export const App = () => {
     <div className="App">
       <h1>Add todo form</h1>
 
-      <form action="/api/todos" method="POST" onSubmit={addTodo}>
+      <form onSubmit={addTodo}>
         <div className="field">
           <input
             type="text"
@@ -84,6 +92,7 @@ export const App = () => {
             value={formTitle}
             placeholder="Enter a title"
             onChange={titleInput}
+            ref={inputRef}
           />
           {errors.titleError && (
             <span className="error">{errors.titleError}</span>
@@ -99,24 +108,27 @@ export const App = () => {
             <option value="0" disabled>
               Choose a user
             </option>
-            {usersFromServer.map(user => (
+            {users.map(user => (
               <option value={user.id} key={user.id}>
                 {user.name}
               </option>
             ))}
           </select>
-
           {errors.selectError && (
             <span className="error">{errors.selectError}</span>
           )}
         </div>
 
-        <button type="submit" data-cy="submitButton">
+        <button
+          type="submit"
+          data-cy="submitButton"
+          disabled={!formTitle.trim() || formSelect === 0}
+        >
           Add
         </button>
       </form>
 
-      <TodoList todos={todos} />
+      <TodoList todos={todos} users={users} />
     </div>
   );
 };
